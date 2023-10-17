@@ -14,13 +14,33 @@ export default class CodeSnippet {
   };
   private _fileExtension = 'js';
   private _fileName = 'temp';
+  private _rulesOfThreadableOperation = {
+    node: {
+      functionDeclaration: /(function).*({)|(const).*(() => {)/g,
+      functionInvocation: /[a-zA-z0-9].*(\()[a-zA-Z0-9]?.*\)/g,
+      classDeclaration: /(class).*({)/g,
+      classInvocation: /(new).*[a-zA-Z0-9](\()/g,
+    },
+    browser: {
+      functionDeclaration: null,
+      functionInvocation: null,
+      classDeclaration: null,
+      classInvocation: null,
+    },
+    php: {
+      functionDeclaration: null,
+      functionInvocation: null,
+      classDeclaration: null,
+      classInvocation: null,
+    },
+  };
 
   public fileContent: string | NodeJS.ArrayBufferView;
   public pathToTheCodeSnippetFile: string;
   public previousThread: Thread;
   public currentThread: Thread;
 
-  constructor(environment: keyof EnvironmentToExtMapper = 'node') {
+  constructor(public environment: keyof EnvironmentToExtMapper = 'node') {
     this._fileExtension = this._environmentsToExtensionMapper[environment];
   }
 
@@ -33,7 +53,6 @@ export default class CodeSnippet {
     if (!fs.existsSync(pathToSnippetFolder)) {
 			fs.mkdirSync(pathToSnippetFolder);
 		}
-    console.warn('content', content);
 
     const fullFileName = `${this._fileName}.${this._fileExtension}`;
     this.pathToTheCodeSnippetFile = path.join(pathToSnippetFolder, fullFileName);
@@ -47,23 +66,43 @@ export default class CodeSnippet {
     }
   }
 
-  async findThreadables(): Promise<Thread[] | Exception> {
-    // Dynamically import the code snippet
+  async findThreadables(): Promise<{ threads: Thread[], exception: Exception | null }> {
+    // Dynamically import the code snippet to test its sanity
     try {
-      const module = await import(this.pathToTheCodeSnippetFile);
+      // Dynamic variable path import does not work so have to hard code it for now
+      // @ts-ignore
+      const imported = await import('../snippet/temp.js');
+      const module = imported.default || imported;
 
       if (!module) {
         return {
-          detail: '[codemo] Module not found or is malformed',
+          threads: [],
+          exception: {
+            detail: 'Module not found or is malformed',
+          },
         };
       }
+
+      // Check against the rules of threadable operation
+      const match = (this.fileContent as string).match(this._rulesOfThreadableOperation[this.environment].classDeclaration as RegExp);
+      const match2 = (this.fileContent as string).match(this._rulesOfThreadableOperation[this.environment].functionDeclaration as RegExp);
+      const match3 = (this.fileContent as string).match(this._rulesOfThreadableOperation[this.environment].classInvocation as RegExp);
+      const match4 = (this.fileContent as string).match(this._rulesOfThreadableOperation[this.environment].functionInvocation as RegExp);
+
+      console.warn(match, match2, match3, match4);
     } catch (ex: any) {
+      console.warn('ex', ex);
       return {
-        message: ex.message,
-        detail: `[codemo] ${ex.detail}`,
+        threads: [],
+        exception: {
+          detail: ex.message,
+        },
       };
     }
 
-    return [];
+    return {
+      threads: [],
+      exception: null,
+    };
   }
 }

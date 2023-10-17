@@ -13,8 +13,15 @@ export default class Executor {
     
   }
 
-  createThreads(codeSnippet: CodeSnippet): Thread[] {
-    return [];
+  async createThreads(codeSnippet: CodeSnippet): Promise<Thread[]> {
+    const result = await codeSnippet.findThreadables();
+
+    if (result.exception !== null) {
+      vscode.window.showErrorMessage(`[codemo] ${result.exception.detail}`);
+      return [];
+    }
+
+    return result.threads;
   }
 
   /**
